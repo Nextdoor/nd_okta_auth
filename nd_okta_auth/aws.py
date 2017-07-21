@@ -106,6 +106,12 @@ class Session(object):
         self.credentials = Credentials(cred_file)
 
     def assume_role(self):
+        '''Use the SAML Assertion to actually get the credentials.
+
+        Uses the supplied (one time use!) SAML Assertion to go out to Amazon
+        and get back a set of temporary credentials. These are written out to
+        disk and can be used for an hour before they need to be replaced.
+        '''
         role = self.assertion.roles()[0]
         creds = self.sts.assume_role_with_saml(
             RoleArn=role['role'],
@@ -114,6 +120,12 @@ class Session(object):
         self._write(creds['Credentials'])
 
     def _write(self, creds):
+        '''Take in supplied credentials and write them to disk.
+
+        Creds:
+            A dictionary of values returned to us by Boto - should have
+            AccessKeyId, SecretAccessKey and SessionToken keys.
+        '''
         self.credentials.add_profile(
             name=self.profile,
             region=self.region,

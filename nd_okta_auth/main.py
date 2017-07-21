@@ -112,7 +112,7 @@ def main(argv):
         creds.assume_role()
 
         if config.reup < 1:
-            sys.exit(1)
+            break
 
         time.sleep(config.reup)
 

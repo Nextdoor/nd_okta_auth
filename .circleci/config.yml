@@ -5,10 +5,6 @@ jobs:
       - image: circleci/python:2.7
     steps:
       - checkout
-      - restore_cache:
-          keys:
-          - v1-dependencies-{{ checksum "requirements.txt" }}
-          - v1-dependencies-
       - run:
           name: install dependencies
           command: |
@@ -16,11 +12,6 @@ jobs:
             . venv/bin/activate
             pip install -r requirements.txt
             pip install -r requirements.test.txt
-
-      - save_cache:
-          paths:
-            - ./venv
-          key: v1-dependencies-{{ checksum "requirements.txt" }}
       - run:
           name: run tests
           command: |

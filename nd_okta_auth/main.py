@@ -97,14 +97,19 @@ def main(argv):
             passcode = getpass.getpass('MFA Passcode: ')
             verified = okta_client.validate_mfa(e.fid, e.state_token, passcode)
 
+    # Once we're authenticated with an OktaSaml client object, we can use that
+    # object to get a fresh SAMLResponse repeatedly and refresh our AWS
+    # Credentials.
     while True:
         log.info('Getting SAML Assertion from {server}'.format(
             server=config.server))
         assertion = okta_client.get_assertion(
             appid=config.appid, apptype='amazon_aws')
 
-        creds = aws.Credentials(assertion)
-        creds.assume_role_with_saml()
+        # With the fresh SAML Assertion, go to Amazon and get new creds. Write
+        # them out to our profile.
+        creds = aws.Session(assertion, profile=config.profile)
+        creds.assume_role()
 
         if config.reup < 1:
             sys.exit(1)

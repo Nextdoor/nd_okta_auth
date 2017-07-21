@@ -23,7 +23,13 @@ from aws_role_credentials import models
 log = logging.getLogger(__name__)
 
 
-class Profile(object):
+class Credentials(object):
+
+    '''Simple AWS Credentials Profile representation.
+
+    This object reads in an Amazon ~/.aws/credentials file, and then allows you
+    to write out credentials into different Profile sections.
+    '''
 
     def __init__(self, filename):
         self.filename = filename
@@ -32,7 +38,7 @@ class Profile(object):
         config = configparser.ConfigParser(interpolation=None)
         try:
             config.read_file(open(self.filename, 'r'))
-        except:
+        except IOError:
             pass
 
         if not config.has_section(name):
@@ -43,6 +49,15 @@ class Profile(object):
             config.write(configfile)
 
     def add_profile(self, name, region, access_key, secret_key, session_token):
+        '''Writes out a set of AWS Credentials to disk.
+
+        args:
+            name: The profile name to write to
+            region: The region to use as the default region for this profile
+            access_key: The AWS_ACCESS_KEY_ID
+            secret_key: The AWS_SECRET_ACCESS_KEY
+            session_token: The AWS_SESSION_TOKEN
+        '''
         name = unicode(name)
         self._add_profile(
             name,
@@ -58,7 +73,17 @@ class Profile(object):
             name=name, file=self.filename))
 
 
-class Credentials(object):
+class Session(object):
+
+    '''Amazon Federated Session Generator.
+
+    This class is used to contact Amazon with a specific SAML Assertion and
+    get back a set of temporary Federated credentials. These credentials are
+    written to disk (using the Credentials object above).
+
+    This object is meant to be used once -- as SAML Assertions are one-time-use
+    objects.
+    '''
 
     def __init__(self,
                  assertion,
@@ -78,9 +103,9 @@ class Credentials(object):
         self.profile = profile
         self.region = region
         self.assertion = models.SamlAssertion(assertion)
-        self.credentials = Profile(cred_file)
+        self.credentials = Credentials(cred_file)
 
-    def assume_role_with_saml(self):
+    def assume_role(self):
         role = self.assertion.roles()[0]
         creds = self.sts.assume_role_with_saml(
             RoleArn=role['role'],

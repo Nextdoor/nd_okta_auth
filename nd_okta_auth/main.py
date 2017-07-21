@@ -58,6 +58,8 @@ def main(argv):
                             required=True)
     arg_parser.add_argument('-a', '--appid', type=str, help='Application ID',
                             required=True)
+    arg_parser.add_argument('-n', '--name', type=str,
+                            help='AWS Profile Name', default='default')
     arg_parser.add_argument('-r', '--reup', type=int,
                             help=(
                                 'Automatically re-up the AWS creds every'

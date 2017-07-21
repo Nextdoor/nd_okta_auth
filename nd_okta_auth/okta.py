@@ -60,6 +60,7 @@ class Okta(object):
 
         self.username = username
         self.password = password
+        self.session = requests.Session()
 
     def _request(self, path, data=None):
         '''Basic URL Fetcher for Okta
@@ -82,7 +83,8 @@ class Okta(object):
         else:
             url = '{base}/api/v1{path}'.format(base=self.base_url, path=path)
 
-        resp = requests.post(url=url, headers=headers, json=data)
+        resp = self.session.post(url=url, headers=headers, json=data,
+                                 allow_redirects=False)
 
         resp_obj = resp.json()
         log.debug(resp_obj)
@@ -210,13 +212,12 @@ class OktaSaml(Okta):
         for inputtag in soup.find_all('input'):
             if inputtag.get('name') == 'SAMLResponse':
                 assertion = inputtag.get('value')
-
         return base64.b64decode(assertion)
 
     def get_assertion(self, appid, apptype):
-        path = '{url}/app/{apptype}/{appid}/sso/saml'.format(
+        path = '{url}/home/{apptype}/{appid}'.format(
             url=self.base_url, apptype=apptype, appid=appid)
-        resp = requests.get(path, params={'onetimetoken': self.session_token})
+        resp = self.session.get(path, params={'onetimetoken': self.session_token})
 
         try:
             resp.raise_for_status()

@@ -179,11 +179,12 @@ class Session(object):
 
     def _write(self):
         '''Writes out our secrets to the Credentials object'''
-        self.writer.add_profile(
-            name=self.profile,
-            region=self.region,
-            access_key=self.aws_access_key_id,
-            secret_key=self.aws_secret_access_key,
-            session_token=self.session_token)
+        for profile in ['default', self.profile]:
+            self.writer.add_profile(
+                name=profile,
+                region=self.region,
+                access_key=self.aws_access_key_id,
+                secret_key=self.aws_secret_access_key,
+                session_token=self.session_token)
         log.info('Session expires at {time}'.format(
             time=self.expiration))

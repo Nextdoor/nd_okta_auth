@@ -159,7 +159,7 @@ def main(argv):
         # still valid. If it is, sleep a bit and skip to the next execution of
         # the loop.
         if session and session.is_valid:
-            log.debug('Credentials are still valid, sleepingt')
+            log.debug('Credentials are still valid, sleeping')
             time.sleep(15)
             continue
 

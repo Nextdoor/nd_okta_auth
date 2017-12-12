@@ -67,7 +67,8 @@ class MainTest(unittest.TestCase):
         # Call to getpass is the password.
         pass_mock.return_value = 'test_password'
 
-        # First call to raw_input is the mistyped passcode. Second call is the valid passcode.
+        # First call to raw_input is the mistyped passcode.
+        # Second call is the valid passcode.
         raw_input_mock.side_effect = ['123', '123456']
 
         # Just mock out the entire Okta object, we won't really instantiate it

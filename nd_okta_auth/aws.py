@@ -12,13 +12,13 @@ Thought Works Inc.
 '''
 
 from __future__ import unicode_literals
+from builtins import str
 import configparser
 import datetime
 import logging
 import os
 from os.path import expanduser
 import xml
-from builtins import str
 
 import boto3
 from nd_okta_auth.aws_saml import SamlAssertion

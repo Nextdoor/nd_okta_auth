@@ -132,6 +132,7 @@ class Session(object):
         self.aws_secret_access_key = None
         self.aws_session_token = None
         self.expiration = None
+        self.session_token = None
 
     @property
     def is_valid(self):

@@ -195,7 +195,7 @@ def main(argv):
             role_selection = user_input('Select a role from above: ')
             session.set_role(role_selection)
             session.assume_role()
-        except requests.exceptions.ConnectionError as e:
+        except requests.exceptions.ConnectionError:
             log.warning('Connection error... will retry')
             time.sleep(5)
             continue

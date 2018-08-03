@@ -84,6 +84,12 @@ class Credentials(object):
         log.info('Wrote profile "{name}" to {file}'.format(
             name=name, file=self.filename))
 
+    def clear_all(self):
+        '''Truncates the configuration file if it exists.
+        '''
+        if os.path.exists(self.filename):
+            with open(self.filename, 'w+') as configfile:
+                configfile.truncate()
 
 class Session(object):
 

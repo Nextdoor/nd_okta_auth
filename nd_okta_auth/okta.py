@@ -208,7 +208,7 @@ class Okta(object):
 
         return ret
 
-    def auth(self, authentication_response=None):
+    def auth(self, authentication_response=None, force_mfa_code=False):
         '''Performs an initial authentication against Okta.
 
         The initial Okta Login authentication is handled here - and optionally
@@ -230,6 +230,7 @@ class Okta(object):
         Args:
             authentication_response: Response from authentication request.
                 If None, will do a new authentication request.
+            force_mfa_code: Force using MFA rather than push notifications.
         '''
         if authentication_response is None:
             authentication_response = self.authentication_request()
@@ -247,7 +248,7 @@ class Okta(object):
 
         if authentication_status == 'MFA_REQUIRED' or authentication_status == 'MFA_CHALLENGE':
             for factor in authentication_response['_embedded']['factors']:
-                if factor['factorType'] == 'push':
+                if factor['factorType'] == 'push' and not force_mfa_code:
                     try:
                         if self.okta_verify_with_push(factor['id'],
                                                       authentication_response['stateToken']):

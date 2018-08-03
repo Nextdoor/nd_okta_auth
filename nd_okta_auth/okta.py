@@ -190,7 +190,25 @@ class Okta(object):
         self.set_token(ret)
         return True
 
-    def auth(self):
+    def authentication_request(self):
+        '''Performs a basic authentication call against Okta.
+
+        This will return the json response of the authentication request.
+        '''
+        path = '/authn'
+        data = {'username': self.username,
+                'password': self.password}
+
+        try:
+            ret = self._request(path, data)
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 401:
+                raise InvalidPassword()
+            raise
+
+        return ret
+
+    def auth(self, authentication_response=None):
         '''Performs an initial authentication against Okta.
 
         The initial Okta Login authentication is handled here - and optionally
@@ -208,46 +226,44 @@ class Okta(object):
 
             https://developer.okta.com/use_cases/authentication/
             session_cookie#visit-an-embed-link-with-the-session-token
+
+        Args:
+            authentication_response: Response from authentication request.
+                If None, will do a new authentication request.
         '''
-        path = '/authn'
-        data = {'username': self.username,
-                'password': self.password}
-        try:
-            ret = self._request(path, data)
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 401:
-                raise InvalidPassword()
+        if authentication_response is None:
+            authentication_response = self.authentication_request()
 
-        status = ret.get('status', None)
+        authentication_status = authentication_response.get('status', None)
 
-        if status == 'SUCCESS':
-            self.set_token(ret)
+        if authentication_status == 'SUCCESS':
+            self.set_token(authentication_response)
             return
 
-        if status == 'MFA_ENROLL' or status == 'MFA_ENROLL_ACTIVATE':
+        if authentication_status == 'MFA_ENROLL' or authentication_status == 'MFA_ENROLL_ACTIVATE':
             log.warning('User {u} needs to enroll in 2FA first'.format(
                 u=self.username))
             raise UnknownError()
 
-        if status == 'MFA_REQUIRED' or status == 'MFA_CHALLENGE':
-            for factor in ret['_embedded']['factors']:
+        if authentication_status == 'MFA_REQUIRED' or authentication_status == 'MFA_CHALLENGE':
+            for factor in authentication_response['_embedded']['factors']:
                 if factor['factorType'] == 'push':
                     try:
                         if self.okta_verify_with_push(factor['id'],
-                                                      ret['stateToken']):
+                                                      authentication_response['stateToken']):
                             return
                     except KeyboardInterrupt:
                         # Allow users to use MFA Passcode by
                         # breaking out of waiting for the push.
                         break
 
-            for factor in ret['_embedded']['factors']:
+            for factor in authentication_response['_embedded']['factors']:
                 if factor['factorType'] == 'token:software:totp':
                     raise PasscodeRequired(
                         fid=factor['id'],
-                        state_token=ret['stateToken'])
+                        state_token=authentication_response['stateToken'])
 
-        raise UnknownError(status)
+        raise UnknownError(authentication_status)
 
 
 class OktaSaml(Okta):

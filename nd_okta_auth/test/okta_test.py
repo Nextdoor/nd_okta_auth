@@ -1,13 +1,17 @@
 from __future__ import unicode_literals
-import unittest
-import requests
+
 import sys
-from nd_okta_auth import okta
+import unittest
+
+import requests
+
+from nd_okta_auth.okta import EmptyInput
+from nd_okta_auth import factor, okta
+
 if sys.version_info[0] < 3:  # Python 2
     import mock
 else:
     from unittest import mock
-
 
 # Successful response message from Okta when you have fully logged in
 SUCCESS_RESPONSE = {
@@ -20,7 +24,7 @@ SUCCESS_RESPONSE = {
                 'lastName': 'Foo',
                 'login': 'bob@foobar.com',
                 'firstName': 'Bob', 'timeZone':
-                'America/Los_Angeles'},
+                    'America/Los_Angeles'},
             'id': 'XXXIDXXX'
         }
     },
@@ -32,47 +36,33 @@ MFA_ENROLL_RESPONSE = {
     'status': 'MFA_ENROLL',
     'stateToken': 'token',
 }
-MFA_CHALLENGE_RESPONSE_OKTA_VERIFY = {
+
+MFA_REQUIRED_RESPONSE = {
     'status': 'MFA_REQUIRED',
     '_embedded': {
         'factors': [
             {
-                'factorType': 'push',
+                'factorType': 'test_factor',
                 'id': 'abcd',
             }
         ]
     },
     'stateToken': 'token',
 }
-MFA_CHALLENGE_RESPONSE_PASSCODE = {
+
+MFA_REQUIRED_RESPONSE_TWOFACTORS = {
     'status': 'MFA_REQUIRED',
     '_embedded': {
         'factors': [
             {
-                'factorType': 'token:software:totp',
-                'id': 'abcd',
+                'factorType': 'factor_one',
+                'id': '1',
+            },
+            {
+                'factorType': 'factor_two',
+                'id': '2',
             }
         ]
-    },
-    'stateToken': 'token',
-}
-MFA_WAITING_RESPONSE = {
-    'status': 'MFA_CHALLENGE',
-    'factorResult': 'WAITING',
-    '_links': {
-        'next': {
-            'href': 'https://foobar.okta.com/api/v1/authn/factors/X/verify',
-        }
-    },
-    'stateToken': 'token',
-}
-MFA_REJECTED_RESPONSE = {
-    'status': 'MFA_CHALLENGE',
-    'factorResult': 'REJECTED',
-    '_links': {
-        'next': {
-            'href': 'https://foobar.okta.com/api/v1/authn/factors/X/verify',
-        }
     },
     'stateToken': 'token',
 }
@@ -81,11 +71,125 @@ MFA_REJECTED_RESPONSE = {
 class OktaTest(unittest.TestCase):
 
     def test_init_blank_inputs(self):
-        with self.assertRaises(okta.EmptyInput):
+        with self.assertRaises(EmptyInput):
             okta.Okta(organization='', username='test', password='test')
 
         with self.assertRaises(okta.EmptyInput):
             okta.Okta(organization=None, username='test', password='test')
+
+    def test_auth_bad_password(self):
+        client = okta.Okta('organization', 'username', 'password')
+        client._request = mock.MagicMock(name='_request')
+
+        resp = requests.Response()
+        resp.status_code = 401
+        resp.body = 'Bad Password'
+        client._request.side_effect = requests.exceptions.HTTPError(
+            response=resp)
+
+        with self.assertRaises(okta.InvalidPassword):
+            client.auth()
+
+    def test_set_token(self):
+        client = okta.Okta('organization', 'username', 'password')
+        client.session = mock.MagicMock(name='session')
+        client.set_token(SUCCESS_RESPONSE)
+        self.assertEquals(client.session_token, 'XXXTOKENXXX')
+
+    def test_auth(self):
+        client = okta.Okta('organization', 'username', 'password')
+        client._request = mock.MagicMock(name='request')
+        client._request.side_effect = [SUCCESS_RESPONSE]
+
+        ret = client.auth()
+        self.assertEquals(ret, None)
+
+    def test_auth_requires_mfa_enroll(self):
+        client = okta.Okta('organization', 'username', 'password')
+        client._request = mock.MagicMock(name='request')
+        client._request.side_effect = [MFA_ENROLL_RESPONSE]
+
+        with self.assertRaises(okta.UnknownError):
+            client.auth()
+
+    def test_auth_mfa_verify(self):
+        client = okta.Okta('organization', 'username', 'password')
+        client._request = mock.MagicMock(name='request')
+        client._request.side_effect = [MFA_REQUIRED_RESPONSE]
+
+        test_factor = mock.MagicMock(name='test_factor')
+        test_factor.name.return_value = 'test_factor'
+        test_factor.verify.return_value = SUCCESS_RESPONSE
+
+        client.supported_factors = [test_factor]
+        client.auth()
+
+        test_factor.verify.assert_called_with('abcd', 'token', sleep=1)
+        self.assertEquals(client.session_token, 'XXXTOKENXXX')
+
+    def test_auth_mfa_verify_fail(self):
+        client = okta.Okta('organization', 'username', 'password')
+        client._request = mock.MagicMock(name='request')
+        client._request.side_effect = [MFA_REQUIRED_RESPONSE]
+
+        test_factor = mock.MagicMock(name='test_factor')
+        test_factor.name.return_value = 'test_factor'
+        test_factor.verify.side_effect = factor.FactorVerificationFailed
+
+        client.supported_factors = [test_factor]
+        with self.assertRaises(okta.ExhaustedFactors):
+            client.auth()
+
+        self.assertEquals(client.session_token, None)
+
+    def test_verify_no_supported_factors(self):
+        client = okta.Okta('organization', 'username', 'password')
+        client._request = mock.MagicMock(name='request')
+        client._request.side_effect = [MFA_REQUIRED_RESPONSE]
+
+        test_factor = mock.MagicMock(name='test_factor')
+        test_factor.name.return_value = 'phone'
+        test_factor.verify.side_effect = factor.FactorVerificationFailed
+
+        client.supported_factors = [test_factor]
+        with self.assertRaises(okta.ExhaustedFactors):
+            client.auth()
+
+        self.assertEquals(client.session_token, None)
+
+    def test_auth_http_timeout(self):
+        client = okta.Okta('organization', 'username', 'password')
+        client._request = mock.MagicMock(name='request')
+        client._request.side_effect = [MFA_REQUIRED_RESPONSE]
+
+        test_factor = mock.MagicMock(name='test_factor')
+        test_factor.name.return_value = 'test_factor'
+        test_factor.verify.side_effect = requests.exceptions.ReadTimeout
+
+        client.supported_factors = [test_factor]
+        with self.assertRaises(okta.ExhaustedFactors):
+            client.auth()
+
+        self.assertEquals(client.session_token, None)
+
+    def test_auth_verify_interrupt(self):
+        client = okta.Okta('organization', 'username', 'password')
+        client._request = mock.MagicMock(name='request')
+        client._request.side_effect = [MFA_REQUIRED_RESPONSE_TWOFACTORS]
+
+        factor_one = mock.MagicMock(name='factor_one')
+        factor_one.name.return_value = 'factor_one'
+        factor_one.verify.side_effect = KeyboardInterrupt
+
+        factor_two = mock.MagicMock(name='factor_two')
+        factor_two.name.return_value = 'factor_two'
+        factor_two.verify.return_value = SUCCESS_RESPONSE
+
+        client.supported_factors = [factor_one, factor_two]
+        client.auth()
+
+        factor_two.verify.assert_called_with('2', 'token', sleep=1)
+        self.assertEquals(client.session_token, 'XXXTOKENXXX')
 
     def test_request_good_response(self):
         client = okta.Okta('organization', 'username', 'password')
@@ -152,154 +256,3 @@ class OktaTest(unittest.TestCase):
         client.session.post.return_value = fake_response_object
         with self.assertRaises(TestExc):
             client._request('/test', {'test': True})
-
-    def test_set_token(self):
-        client = okta.Okta('organization', 'username', 'password')
-        client.session = mock.MagicMock(name='session')
-        client.set_token(SUCCESS_RESPONSE)
-        self.assertEquals(client.session_token, 'XXXTOKENXXX')
-
-    def test_validate_mfa_too_short(self):
-        client = okta.Okta('organization', 'username', 'password')
-        ret = client.validate_mfa('fid', 'token', '123')
-        self.assertEquals(False, ret)
-
-    def test_validate_mfa_invalid_token(self):
-        client = okta.Okta('organization', 'username', 'password')
-        client._request = mock.MagicMock(name='_request')
-        resp = requests.Response()
-        resp.status_code = 403
-        client._request.side_effect = requests.exceptions.HTTPError(
-            response=resp)
-
-        ret = client.validate_mfa('fid', 'token', '123456')
-        self.assertEquals(False, ret)
-
-        client._request.assert_has_calls([
-            mock.call(
-                '/authn/factors/fid/verify',
-                {'fid': 'fid', 'stateToken': 'token', 'passCode': '123456'})
-        ])
-
-    def test_validate_mfa_unknown_error(self):
-        client = okta.Okta('organization', 'username', 'password')
-        client._request = mock.MagicMock(name='_request')
-        resp = requests.Response()
-        resp.status_code = 500
-        resp.body = 'Something bad happened'
-        client._request.side_effect = requests.exceptions.HTTPError(
-            response=resp)
-
-        with self.assertRaises(okta.UnknownError):
-            client.validate_mfa('fid', 'token', '123456')
-
-    def test_validate_mfa(self):
-        client = okta.Okta('organization', 'username', 'password')
-        client._request = mock.MagicMock(name='_request')
-        client._request.return_value = SUCCESS_RESPONSE
-        ret = client.validate_mfa('fid', 'token', '123456')
-        self.assertEquals(ret, True)
-        self.assertEquals(client.session_token, 'XXXTOKENXXX')
-
-    def test_okta_verify_with_push(self):
-        client = okta.Okta('organization', 'username', 'password')
-        client._request = mock.MagicMock(name='_request')
-
-        client._request.side_effect = [
-            MFA_WAITING_RESPONSE,
-            MFA_WAITING_RESPONSE,
-            MFA_WAITING_RESPONSE,
-            SUCCESS_RESPONSE,
-        ]
-
-        ret = client.okta_verify_with_push('123', 'token', sleep=0.1)
-        self.assertEquals(ret, True)
-
-    def test_okta_verify_with_push_rejected(self):
-        client = okta.Okta('organization', 'username', 'password')
-        client._request = mock.MagicMock(name='_request')
-
-        client._request.side_effect = [
-            MFA_WAITING_RESPONSE,
-            MFA_WAITING_RESPONSE,
-            MFA_WAITING_RESPONSE,
-            MFA_REJECTED_RESPONSE,
-        ]
-
-        ret = client.okta_verify_with_push('123', 'token', sleep=0.1)
-        self.assertEquals(ret, False)
-
-    def test_auth_bad_password(self):
-        client = okta.Okta('organization', 'username', 'password')
-        client._request = mock.MagicMock(name='_request')
-
-        resp = requests.Response()
-        resp.status_code = 401
-        resp.body = 'Bad Password'
-        client._request.side_effect = requests.exceptions.HTTPError(
-            response=resp)
-
-        with self.assertRaises(okta.InvalidPassword):
-            client.auth()
-
-    def test_auth(self):
-        client = okta.Okta('organization', 'username', 'password')
-        client._request = mock.MagicMock(name='_request')
-
-        client._request.side_effect = [SUCCESS_RESPONSE]
-
-        ret = client.auth()
-        self.assertEquals(ret, None)
-
-    def test_auth_requires_mfa_enroll(self):
-        client = okta.Okta('organization', 'username', 'password')
-        client._request = mock.MagicMock(name='_request')
-
-        client._request.side_effect = [MFA_ENROLL_RESPONSE]
-
-        with self.assertRaises(okta.UnknownError):
-            client.auth()
-
-    def test_auth_trigger_okta_verify(self):
-        client = okta.Okta('organization', 'username', 'password')
-        client._request = mock.MagicMock(name='_request')
-        client.okta_verify_with_push = mock.MagicMock(
-            name='okta_verify_with_push')
-
-        client._request.side_effect = [MFA_CHALLENGE_RESPONSE_OKTA_VERIFY]
-
-        ret = client.auth()
-        self.assertEquals(ret, None)
-        client.okta_verify_with_push.assert_has_calls([
-            mock.call('abcd', 'token')
-        ])
-
-    def test_auth_trigger_okta_verify_canceled(self):
-        client = okta.Okta('organization', 'username', 'password')
-        client._request = mock.MagicMock(name='_request')
-        client.okta_verify_with_push = mock.MagicMock(
-            name='okta_verify_with_push')
-        client.okta_verify_with_push.side_effect = KeyboardInterrupt
-
-        client._request.side_effect = [MFA_CHALLENGE_RESPONSE_OKTA_VERIFY]
-
-        with self.assertRaises(okta.UnknownError):
-            client.auth()
-
-    def test_auth_throws_passcode_required(self):
-        client = okta.Okta('organization', 'username', 'password')
-        client._request = mock.MagicMock(name='_request')
-
-        client._request.side_effect = [MFA_CHALLENGE_RESPONSE_PASSCODE]
-
-        with self.assertRaises(okta.PasscodeRequired):
-            client.auth()
-
-    def test_auth_with_unexpected_response(self):
-        client = okta.Okta('organization', 'username', 'password')
-        client._request = mock.MagicMock(name='_request')
-
-        client._request.side_effect = [{}]
-
-        with self.assertRaises(okta.UnknownError):
-            client.auth()

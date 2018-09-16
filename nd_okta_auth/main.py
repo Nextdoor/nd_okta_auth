@@ -150,12 +150,9 @@ def main(argv):
         log.error('Invalid Username ({user}) or Password'.format(
                   user=config.username))
         sys.exit(1)
-    except okta.PasscodeRequired as e:
-        log.warning('MFA Requirement Detected - Enter your passcode here')
-        verified = False
-        while not verified:
-            passcode = user_input('MFA Passcode: ')
-            verified = okta_client.validate_mfa(e.fid, e.state_token, passcode)
+    except okta.ExhaustedFactors as e:
+        log.error(e.message)
+        sys.exit(1)
 
     # Once we're authenticated with an OktaSaml client object, we can use that
     # object to get a fresh SAMLResponse repeatedly and refresh our AWS
@@ -195,7 +192,7 @@ def main(argv):
             role_selection = user_input('Select a role from above: ')
             session.set_role(role_selection)
             session.assume_role()
-        except requests.exceptions.ConnectionError as e:
+        except requests.exceptions.ConnectionError:
             log.warning('Connection error... will retry')
             time.sleep(5)
             continue

@@ -15,8 +15,7 @@ import sys
 import bs4
 import requests
 
-from . import factor
-from . import base_client
+from nd_okta_auth import factor, base_client
 
 if sys.version_info[0] < 3:  # Python 2
     from exceptions import Exception

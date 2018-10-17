@@ -31,9 +31,9 @@ class Factor(base_client.BaseOktaClient):
 
 
 def factors(okta_client):
-    from .u2f import U2fFactor    # noqa: F401
-    from .push import PushFactor  # noqa: F401
-    from .totp import TotpFactor  # noqa: F401
+    from nd_okta_auth.factor.u2f import U2fFactor    # noqa: F401
+    from nd_okta_auth.factor.push import PushFactor  # noqa: F401
+    from nd_okta_auth.factor.totp import TotpFactor  # noqa: F401
 
     subclasses = Factor.__subclasses__()
     f = []

@@ -1,9 +1,10 @@
-from . import Factor, FactorVerificationFailed
-from fido2.client import U2fClient, ClientError
-from fido2.hid import CtapHidDevice
 import logging
 import time
 
+from fido2.client import U2fClient, ClientError
+from fido2.hid import CtapHidDevice
+
+from nd_okta_auth.factor import Factor, FactorVerificationFailed
 
 log = logging.getLogger(__name__)
 
@@ -11,7 +12,7 @@ log = logging.getLogger(__name__)
 class U2fFactor(Factor):
 
     def name(self):
-        return "u2f"
+        return 'u2f'
 
     def _get_devices(self):
         return CtapHidDevice.list_devices()

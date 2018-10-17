@@ -1,7 +1,8 @@
-from . import Factor
 import logging
+
 import requests
 
+from nd_okta_auth.factor import Factor
 
 log = logging.getLogger(__name__)
 

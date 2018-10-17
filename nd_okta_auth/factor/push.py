@@ -1,7 +1,7 @@
 import logging
 import time
 
-from . import Factor, FactorVerificationFailed
+from nd_okta_auth.factor import Factor, FactorVerificationFailed
 
 log = logging.getLogger(__name__)
 
@@ -9,7 +9,7 @@ log = logging.getLogger(__name__)
 class PushFactor(Factor):
 
     def name(self):
-        return "push"
+        return 'push'
 
     def verify(self, fid, state_token, sleep):
         '''Triggers an Okta Push Verification and waits.

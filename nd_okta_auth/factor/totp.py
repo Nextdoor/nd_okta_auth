@@ -39,6 +39,7 @@ class TotpFactor(Factor):
             passcode = str(self.get_passcode())
             if len(passcode) != 6:
                 log.error('Passcodes must be 6 digits')
+                continue
 
             path = '/authn/factors/{fid}/verify'.format(fid=fid)
             data = {'fid': fid,

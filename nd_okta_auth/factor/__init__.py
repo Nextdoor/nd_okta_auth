@@ -30,15 +30,13 @@ class Factor(base_client.BaseOktaClient):
         return
 
 
-def factors(okta_client):
+def factors(organization):
     from nd_okta_auth.factor.u2f import U2fFactor    # noqa: F401
     from nd_okta_auth.factor.push import PushFactor  # noqa: F401
     from nd_okta_auth.factor.totp import TotpFactor  # noqa: F401
 
-    subclasses = Factor.__subclasses__()
-    f = []
-
-    for subclass in subclasses:
-        f.append(subclass(okta_client))
-
-    return f
+    return [
+      U2fFactor(organization),
+      PushFactor(organization),
+      TotpFactor(organization)
+    ]

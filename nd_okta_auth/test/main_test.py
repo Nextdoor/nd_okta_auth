@@ -67,64 +67,6 @@ class MainTest(unittest.TestCase):
     @mock.patch('nd_okta_auth.okta.OktaSaml')
     @mock.patch('nd_okta_auth.main.get_config_parser')
     @mock.patch('getpass.getpass')
-    def test_entry_point_mfa(self, pass_mock, config_mock,
-                             okta_mock, aws_mock, input_mock):
-        # First call to this is the password. Second call is the mis-typed
-        # passcode. Third call is a valid passcode.
-        pass_mock.side_effect = ['test_password']
-        input_mock.side_effect = ['123', '123456']
-
-        # Just mock out the entire Okta object, we won't really instantiate it
-        fake_okta = mock.MagicMock(name='OktaSaml')
-        okta_mock.return_value = fake_okta
-        aws_mock.return_value = mock.MagicMock()
-
-        # Make sure we don't get stuck in a loop, always have to mock out the
-        # reup option.
-        fake_parser = mock.MagicMock(name='fake_parser')
-        fake_parser.reup = 0
-        config_mock.return_value = fake_parser
-
-        # Now, when we auth() throw a okta.PasscodeRequired exception to
-        # trigger the MFA requirement. Note, this is only the manually entered
-        # in passcode MFA req. OktaSaml client automatically handles Okta
-        # Verify with Push MFA reqs.
-        fake_okta.auth.side_effect = okta.PasscodeRequired(
-            fid='test_factor_id',
-            state_token='test_token')
-
-        # Pretend that the validate_mfa() call fails the first time, and
-        # succeeds the second time. This simulates a typo on the MFA code.
-        fake_okta.validate_mfa.side_effect = [False, True]
-
-        main.main('test')
-
-        # Ensure that getpass was called once for the password
-        pass_mock.assert_has_calls([
-            mock.call(),
-        ])
-
-        # Ensure that we called auth, then called validate_mfa() twice - each
-        # with different passcodes. Validating that the user was indeed asked
-        # for a passcode on each iteration.
-        fake_okta.assert_has_calls([
-            mock.call.auth(),
-            mock.call.validate_mfa('test_factor_id', 'test_token', '123'),
-            mock.call.validate_mfa('test_factor_id', 'test_token', '123456'),
-        ])
-
-        # Ensure that user_input was called twice; once for the bad input and
-        # once for the retry
-        input_mock.assert_has_calls([
-            mock.call('MFA Passcode: '),
-            mock.call('MFA Passcode: '),
-        ])
-
-    @mock.patch('nd_okta_auth.main.user_input')
-    @mock.patch('nd_okta_auth.aws.Session')
-    @mock.patch('nd_okta_auth.okta.OktaSaml')
-    @mock.patch('nd_okta_auth.main.get_config_parser')
-    @mock.patch('getpass.getpass')
     def test_entry_point_multirole(self, pass_mock, config_mock,
                                    okta_mock, aws_mock, input_mock):
         # First call to this is the password. Second call is the mis-typed

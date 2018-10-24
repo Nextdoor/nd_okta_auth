@@ -10,20 +10,22 @@ credentials that can be used for any of the Amazon SDK libraries or CLI tools.
 # Features
 
 We have support for logging into Okta, optionally handling MFA Authentication,
-and then generating new SAML authenticated AWS sessions. In paritcular, this
+and then generating new SAML authenticated AWS sessions. In particular, this
 tool has a few core features.
 
 ## Optional MFA Authentication
 
-If you organization requires MFA for the _[initial login into Okta][okta_mfa]_, 
+If your organization requires MFA for the _[initial login into Okta][okta_mfa]_,
 we will automatically detect that requirement on a per-user basis and prompt
-the user to complete the Multi Factor Authentication.
+the user to complete the Multi Factor Authentication. The following factors
+are supported by _nd\_okta\_auth_:
 
-In paritcular, there is support for standard passcode based auth, as well as
-support for [Okta Verify with Push][okta_verify]. If both are available,
-Okta Verify with Push will be prioritized and a push notification is
-_automatically sent to the user_. If the user declines the validation, then
-optionally the Passcode can be entered in manually.
+- [FIDO U2F][okta_u2f] (eg yubikey)
+- [Okta Verify with Push][okta_verify]
+- TOTP (Okta Verify, Duo, and Google Authenticator)
+
+If a user has multiple factors they will be prompted in the above order. A
+user can hit Control-C to skip a factor.
 
 ## Re-Up Mode .. Automatic Credential Re-Generation
 
@@ -96,4 +98,5 @@ Python 2.7.1+ and Python 3.5.0+ are supported
 [okta_aws_guide]: https://support.okta.com/help/servlet/fileField?retURL=%2Fhelp%2Farticles%2FKnowledge_Article%2FAmazon-Web-Services-and-Okta-Integration-Guide&entityId=ka0F0000000MeyyIAC&field=File_Attachment__Body__s
 [okta_mfa]: https://www.okta.com/products/adaptive-multi-factor-authentication/
 [okta_verify]: https://www.okta.com/blog/tag/okta-verify-with-push/
+[okta_u2f]: https://support.okta.com/help/s/article/Using-YubiKey-Authentication-in-Okta
 [aws_saml]: http://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithSAML.html

@@ -30,10 +30,10 @@ jobs:
             . venv/bin/activate
             python setup.py pep8
       - run:
-          name: pyflakes
+          name: flake8
           command: |
             . venv/bin/activate
-            python setup.py pyflakes
+            python setup.py flake8
   test-3.5:
     <<: *test-template
     docker:

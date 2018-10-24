@@ -7,50 +7,39 @@ events of bad passwords, MFA requirements, etc.
 '''
 
 from __future__ import unicode_literals
+
 import base64
 import logging
-import time
 import sys
+
 import bs4
 import requests
+
+from nd_okta_auth import factor, base_client
+
 if sys.version_info[0] < 3:  # Python 2
     from exceptions import Exception
 
 log = logging.getLogger(__name__)
-
-BASE_URL = 'https://{organization}.okta.com'
-
-
-class BaseException(Exception):
-    '''Base Exception for Okta Auth'''
 
 
 class UnknownError(Exception):
     '''Some Expected Return Was Received'''
 
 
-class EmptyInput(BaseException):
+class EmptyInput(base_client.BaseException):
     '''Invalid Input - Empty String Detected'''
 
 
-class InvalidPassword(BaseException):
+class InvalidPassword(base_client.BaseException):
     '''Invalid Password'''
 
 
-class PasscodeRequired(BaseException):
-    '''A 2FA Passcode Must Be Entered'''
-
-    def __init__(self, fid, state_token):
-        self.fid = fid
-        self.state_token = state_token
+class ExhaustedFactors(base_client.BaseException):
+    '''Failed to authenticate user with any factor'''
 
 
-class OktaVerifyRequired(BaseException):
-    '''OktaVerify Authentication Is Required'''
-
-
-class Okta(object):
-
+class Okta(base_client.BaseOktaClient):
     '''Base Okta Login Object with MFA handling.
 
     This base login object handles connecting to Okta, authenticating a user,
@@ -62,7 +51,7 @@ class Okta(object):
     '''
 
     def __init__(self, organization, username, password):
-        self.base_url = BASE_URL.format(organization=organization)
+        base_client.BaseOktaClient.__init__(self, organization)
         log.debug('Base URL Set to: {url}'.format(url=self.base_url))
 
         # Validate the inputs are reasonably sane
@@ -72,37 +61,8 @@ class Okta(object):
 
         self.username = username
         self.password = password
-        self.session = requests.Session()
-
-    def _request(self, path, data=None):
-        '''Basic URL Fetcher for Okta
-
-        Any HTTPError is raised immediately, otherwise the response is parsed
-        as JSON and passed back as a dictionary.
-
-        Args:
-            path: The path at the base url to call
-            data: Optional data to pass in as Post parameters
-
-        Returns:
-            The response in dict form.
-        '''
-        headers = {'Accept': 'application/json',
-                   'Content-Type': 'application/json'}
-
-        if path.startswith('http'):
-            url = path
-        else:
-            url = '{base}/api/v1{path}'.format(base=self.base_url, path=path)
-
-        resp = self.session.post(url=url, headers=headers, json=data,
-                                 allow_redirects=False)
-
-        resp_obj = resp.json()
-        log.debug(resp_obj)
-
-        resp.raise_for_status()
-        return resp_obj
+        self.supported_factors = factor.factors(organization)
+        self.session_token = None
 
     def set_token(self, ret):
         '''Parses an authentication response and stores the token.
@@ -119,76 +79,6 @@ class Okta(object):
         log.info('Successfully authed {firstName} {lastName}'.format(
             firstName=firstName, lastName=lastName))
         self.session_token = ret['sessionToken']
-
-    def validate_mfa(self, fid, state_token, passcode):
-        '''Validates an Okta user with Passcode-based MFA.
-
-        Takes in the supplied Factor ID (fid), State Token and user supplied
-        Passcode, and validates the auth. If successful, sets the session
-        token. If invalid, raises an exception.
-
-        Args:
-            fid: Okta Factor ID (returned in the PasscodeRequired exception)
-            state_token: State Tken (returned in the PasscodeRequired
-            exception)
-            passcode: The user-supplied Passcode to verify
-
-        Returns:
-            True/False whether or not authentication was successful
-        '''
-        if len(passcode) != 6:
-            log.error('Passcodes must be 6 digits')
-            return False
-
-        path = '/authn/factors/{fid}/verify'.format(fid=fid)
-        data = {'fid': fid,
-                'stateToken': state_token,
-                'passCode': passcode}
-        try:
-            ret = self._request(path, data)
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 403:
-                log.error('Invalid Passcode Detected')
-                return False
-            raise UnknownError(e.response.body)
-
-        self.set_token(ret)
-        return True
-
-    def okta_verify_with_push(self, fid, state_token, sleep=1):
-        '''Triggers an Okta Push Verification and waits.
-
-        This metho is meant to be called by self.auth() if a Login session
-        requires MFA, and the users profile supports Okta Push with Verify.
-
-        We trigger the push, and then immediately go into a wait loop. Each
-        time we loop around, we pull the latest status for that push event. If
-        its Declined, we will throw an error. If its accepted, we write out our
-        SessionToken.
-
-        Args:
-            fid: Okta Factor ID used to trigger the push
-            state_token: State Token allowing us to trigger the push
-        '''
-        log.warning('Okta Verify Push being sent...')
-        path = '/authn/factors/{fid}/verify'.format(fid=fid)
-        data = {'fid': fid,
-                'stateToken': state_token}
-        ret = self._request(path, data)
-
-        while ret['status'] != 'SUCCESS':
-            log.info('Waiting for Okta Verification...')
-            time.sleep(sleep)
-
-            if ret.get('factorResult', 'REJECTED') == 'REJECTED':
-                log.error('Okta Verify Push REJECTED')
-                return False
-
-            links = ret.get('_links')
-            ret = self._request(links['next']['href'], data)
-
-        self.set_token(ret)
-        return True
 
     def auth(self):
         '''Performs an initial authentication against Okta.
@@ -230,24 +120,44 @@ class Okta(object):
             raise UnknownError()
 
         if status == 'MFA_REQUIRED' or status == 'MFA_CHALLENGE':
-            for factor in ret['_embedded']['factors']:
-                if factor['factorType'] == 'push':
-                    try:
-                        if self.okta_verify_with_push(factor['id'],
-                                                      ret['stateToken']):
-                            return
-                    except KeyboardInterrupt:
-                        # Allow users to use MFA Passcode by
-                        # breaking out of waiting for the push.
-                        break
+            # Factors enabled by the user
+            enabled_factors = {}
+            for enabled_factor in ret['_embedded']['factors']:
+                enabled_factors[enabled_factor['factorType']] = enabled_factor
 
-            for factor in ret['_embedded']['factors']:
-                if factor['factorType'] == 'token:software:totp':
-                    raise PasscodeRequired(
-                        fid=factor['id'],
-                        state_token=ret['stateToken'])
+            # Loop through locally supported factors
+            for supported_factor in self.supported_factors:
+                enabled_factor = enabled_factors.get(supported_factor.name(),
+                                                     None)
 
-        raise UnknownError(status)
+                if enabled_factor is None:
+                    continue
+
+                log.info('Authenticating with factor: {}'.format(
+                    supported_factor.name()))
+
+                try:
+                    ret = supported_factor.verify(enabled_factor['id'],
+                                                  ret['stateToken'], sleep=1)
+                    self.set_token(ret)
+                    return
+                except KeyboardInterrupt:
+                    # Allow users to use MFA Push by breaking
+                    # out of waiting for U2F device.
+                    log.info('User skipping factor: {}'.format(
+                        supported_factor.name()))
+                    continue
+                except factor.FactorVerificationFailed as e:
+                    # Non fatal error that a factor failed to
+                    # be verified.
+                    log.error(e)
+                    continue
+                except requests.exceptions.ReadTimeout:
+                    log.error('HTTP timeout contacting Okta at {}'.format(
+                        self.base_url))
+                    continue
+
+        raise ExhaustedFactors('Failed to verify with any MFA factor')
 
 
 class OktaSaml(Okta):

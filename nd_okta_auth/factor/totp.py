@@ -1,6 +1,7 @@
 import logging
 
 import requests
+from six.moves import input
 
 from nd_okta_auth.factor import Factor
 
@@ -37,7 +38,7 @@ class TotpFactor(Factor):
         '''
 
         while True:
-            passcode = str(self.get_passcode())
+            passcode = self.get_passcode()
             if len(passcode) != 6:
                 log.error('Passcodes must be 6 digits')
                 continue

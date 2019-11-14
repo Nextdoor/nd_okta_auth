@@ -31,11 +31,13 @@ class Factor(base_client.BaseOktaClient):
 
 
 def factors(organization):
-    from nd_okta_auth.factor.u2f import U2fFactor    # noqa: F401
-    from nd_okta_auth.factor.push import PushFactor  # noqa: F401
-    from nd_okta_auth.factor.totp import TotpFactor  # noqa: F401
+    from nd_okta_auth.factor.u2f import U2fFactor              # noqa: F401
+    from nd_okta_auth.factor.push import PushFactor            # noqa: F401
+    from nd_okta_auth.factor.totp import TotpFactor            # noqa: F401
+    from nd_okta_auth.factor.webauthn import WebauthnFactor    # noqa: F401
 
     return [
+      WebauthnFactor(organization),
       U2fFactor(organization),
       PushFactor(organization),
       TotpFactor(organization)

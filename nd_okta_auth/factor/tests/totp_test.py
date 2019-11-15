@@ -49,7 +49,7 @@ class OktaTest(unittest.TestCase):
     @mock.patch('nd_okta_auth.factor.totp.user_input')
     def test_get_passcode(self, input_mock):
         totp_factor = factor.TotpFactor('foobar')
-        input_mock.return_value = 123456
+        input_mock.return_value = '123456'
 
         totp_factor._request = mock.MagicMock(name='_request')
         totp_factor._request.side_effect = [
@@ -62,7 +62,7 @@ class OktaTest(unittest.TestCase):
     def test_totp_success(self):
         totp_factor = factor.TotpFactor('foobar')
         totp_factor.get_passcode = mock.MagicMock(name='get_passcode')
-        totp_factor.get_passcode.return_value = 123456
+        totp_factor.get_passcode.return_value = '123456'
 
         totp_factor._request = mock.MagicMock(name='_request')
         totp_factor._request.side_effect = [
@@ -75,7 +75,7 @@ class OktaTest(unittest.TestCase):
     def test_totp_unknown_failure(self):
         totp_factor = factor.TotpFactor('foobar')
         totp_factor.get_passcode = mock.MagicMock(name='get_passcode')
-        totp_factor.get_passcode.return_value = 123456
+        totp_factor.get_passcode.return_value = '123456'
 
         totp_factor._request = mock.MagicMock(name='_request')
 
@@ -91,7 +91,7 @@ class OktaTest(unittest.TestCase):
     def test_totp_try_again(self):
         totp_factor = factor.TotpFactor('foobar')
         totp_factor.get_passcode = mock.MagicMock(name='get_passcode')
-        totp_factor.get_passcode.side_effect = [123, 123456, 654321]
+        totp_factor.get_passcode.side_effect = ['123', '123456', '654321']
 
         totp_factor._request = mock.MagicMock(name='_request')
 

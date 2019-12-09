@@ -2,6 +2,7 @@ from __future__ import unicode_literals
 
 import sys
 import unittest
+import base64
 
 import fido2
 
@@ -30,29 +31,38 @@ SUCCESS_RESPONSE = {
     'sessionToken': 'XXXTOKENXXX'
 }
 
+CREDENTIAL_ID_STR = b'ababababababa'
+CREDENTIAL_ID_ENC = 'YWJhYmFiYWJhYmFiYQ=='
+CREDENTIAL_ID_DEC = base64.urlsafe_b64decode(CREDENTIAL_ID_ENC)
+
 CHALLENGE_RESPONSE = {
     'status': 'MFA_CHALLENGE',
     '_embedded': {
         'factor': {
             'profile': {
-                'credentialId': 'asfodiuhdwacdas',
-                'version': 'U2F_V2',
-                'appId': 'https://foobar.okta.com'
+                'credentialId': CREDENTIAL_ID_ENC,
+                'authenticatorName': 'yekibuy'
             },
             "_embedded": {
                 "challenge": {
                     'challenge': 'anonce',
-                    'timeoutSeconds': 20
+                    'extensions': {}
                 }
             },
             'id': '123',
-            'factorType': 'u2f',
+            'factorType': 'webauthn',
             'provider': 'FIDO',
             'vendorName': 'FIDO'
         }
     },
-    'expiresAt': '2017-07-24T17:05:59.000Z',
+    'policy': {
+        'allowRememberDevice': True,
+        'rememberDeviceLifetimeInMinutes': 0,
+        'rememberDeviceByDefault': False,
+        'factorsPolicyInfo': {}
+      },
     'stateToken': 'XXXTOKENXXX',
+    'expiresAt': '2017-07-24T17:05:59.000Z'
 }
 
 REJECTED_RESPONSE = {
@@ -66,6 +76,15 @@ REJECTED_RESPONSE = {
 }
 
 
+class dotdict(dict):
+    """ dot.notation access to dictionary attributes
+        source: https://stackoverflow.com/a/23689767
+    """
+    __getattr__ = dict.get
+    __setattr__ = dict.__setitem__
+    __delattr__ = dict.__delitem__
+
+
 class OktaTest(unittest.TestCase):
     def test_push_name(self):
         webauthn = factor.WebauthnFactor('foobar')
@@ -74,17 +93,19 @@ class OktaTest(unittest.TestCase):
     def test_webauthn_success(self):
         webauthn = factor.WebauthnFactor('foobar')
 
-        # Mock out the U2F device
+        # Mock out the webauthn device
         mock_device = mock.MagicMock(name='mock_device')
         webauthn._get_devices = mock.MagicMock(name='_get_devices')
         webauthn._get_devices.return_value = [mock_device].__iter__()
 
-        # Mock out U2F client
+        # Mock out webauthn client
         mock_client = mock.MagicMock(name='mock_client')
         webauthn._get_client = mock.MagicMock(name='_get_client')
         webauthn._get_client.return_value = mock_client
-        mock_client.sign.return_value = {"clientData": "foo",
-                                         "signatureData": "bar"}
+
+        assertions = [dotdict({'auth_data': b'foo', 'signature': b'bar'})]
+        client_data = b'baz'
+        mock_client.get_assertion.return_value = (assertions, client_data)
 
         # Mock call to Okta API
         webauthn._request = mock.MagicMock(name='_request')
@@ -102,10 +123,17 @@ class OktaTest(unittest.TestCase):
         webauthn._get_client.assert_called_once_with(mock_device,
                                                      'https://foobar'
                                                      '.okta.com')
-        registered_keys = [
-            {'version': 'U2F_V2', 'keyHandle': 'asfodiuhdwacdas'}]
-        mock_client.sign.assert_called_once_with('https://foobar.okta.com',
-                                                 'anonce', registered_keys)
+
+        allow_list = [{
+            'type': 'public-key',
+            'id': CREDENTIAL_ID_DEC
+        }]
+
+        mock_client.get_assertion.assert_called_once_with(
+            'foobar.okta.com',
+            'anonce',
+            allow_list
+        )
 
         calls = [
             mock.call('/authn/factors/123/verify',
@@ -113,26 +141,28 @@ class OktaTest(unittest.TestCase):
 
             mock.call('/authn/factors/123/verify',
                       {'stateToken': 'XXXTOKENXXX',
-                       'clientData': 'foo',
-                       'signatureData': 'bar'})
+                       'clientData': 'YmF6',
+                       'signatureData': 'YmFy',
+                       'authenticatorData': 'Zm9v'})
         ]
         webauthn._request.assert_has_calls(calls)
 
     def test_webauthn_wait(self):
         webauthn = factor.WebauthnFactor('foobar')
 
-        # Mock out the U2F device
+        # Mock out the webauthn device
         mock_device = mock.MagicMock(name='mock_device')
         webauthn._get_devices = mock.MagicMock(name='_get_devices')
         webauthn._get_devices.return_value = [None, None, None, None,
                                               mock_device].__iter__()
 
-        # Mock out U2F client
+        # Mock out webauthn client
         mock_client = mock.MagicMock(name='mock_client')
         webauthn._get_client = mock.MagicMock(name='_get_client')
         webauthn._get_client.return_value = mock_client
-        mock_client.sign.return_value = {"clientData": "foo",
-                                         "signatureData": "bar"}
+        assertions = [dotdict({'auth_data': b'foo', 'signature': b'bar'})]
+        client_data = b'baz'
+        mock_client.get_assertion.return_value = (assertions, client_data)
 
         # Mock call to Okta API
         webauthn._request = mock.MagicMock(name='_request')
@@ -150,16 +180,16 @@ class OktaTest(unittest.TestCase):
     def test_webauthn_client_error(self):
         webauthn = factor.WebauthnFactor('foobar')
 
-        # Mock out the U2F device
+        # Mock out the webauthn device
         mock_device = mock.MagicMock(name='mock_device')
         webauthn._get_devices = mock.MagicMock(name='_get_devices')
         webauthn._get_devices.return_value = [mock_device].__iter__()
 
-        # Mock out U2F client
+        # Mock out webauthn client
         mock_client = mock.MagicMock(name='mock_client')
         webauthn._get_client = mock.MagicMock(name='_get_client')
         webauthn._get_client.return_value = mock_client
-        mock_client.sign.side_effect = fido2.client.ClientError(4)
+        mock_client.get_assertion.side_effect = fido2.client.ClientError(4)
 
         # Mock call to Okta API
         webauthn._request = mock.MagicMock(name='_request')
@@ -184,17 +214,15 @@ class OktaTest(unittest.TestCase):
     def test_webauthn_rejected(self):
         webauthn = factor.WebauthnFactor('foobar')
 
-        # Mock out the U2F device
+        # Mock out the webauthn device
         mock_device = mock.MagicMock(name='mock_device')
         webauthn._get_devices = mock.MagicMock(name='_get_devices')
         webauthn._get_devices.return_value = [mock_device].__iter__()
 
-        # Mock out U2F client
+        # Mock out webauthn client
         mock_client = mock.MagicMock(name='mock_client')
         webauthn._get_client = mock.MagicMock(name='_get_client')
         webauthn._get_client.return_value = mock_client
-        mock_client.sign.return_value = {"clientData": "foo",
-                                         "signatureData": "bar"}
 
         # Mock call to Okta API
         webauthn._request = mock.MagicMock(name='_request')
@@ -202,6 +230,10 @@ class OktaTest(unittest.TestCase):
             CHALLENGE_RESPONSE,
             REJECTED_RESPONSE,
         ]
+
+        assertions = [dotdict({'auth_data': b'foo', 'signature': b'bar'})]
+        client_data = b'baz'
+        mock_client.get_assertion.return_value = (assertions, client_data)
 
         # Run code
         with self.assertRaises(factor.FactorVerificationFailed):
@@ -212,10 +244,6 @@ class OktaTest(unittest.TestCase):
         webauthn._get_client.assert_called_once_with(mock_device,
                                                      'https://foobar.'
                                                      'okta.com')
-        registered_keys = [
-            {'version': 'U2F_V2', 'keyHandle': 'asfodiuhdwacdas'}]
-        mock_client.sign.assert_called_once_with('https://foobar.okta.com',
-                                                 'anonce', registered_keys)
 
         calls = [
             mock.call('/authn/factors/123/verify', {'fid': '123',
@@ -225,20 +253,21 @@ class OktaTest(unittest.TestCase):
 
             mock.call('/authn/factors/123/verify',
                       {'stateToken': 'XXXTOKENXXX',
-                       'clientData': 'foo',
-                       'signatureData': 'bar'})
+                       'clientData': 'YmF6',
+                       'signatureData': 'YmFy',
+                       'authenticatorData': 'Zm9v'})
         ]
         webauthn._request.assert_has_calls(calls)
 
     def test_unexpected_status(self):
         webauthn = factor.WebauthnFactor('foobar')
 
-        # Mock out the U2F device
+        # Mock out the webauthn device
         mock_device = mock.MagicMock(name='mock_device')
         webauthn._get_devices = mock.MagicMock(name='_get_devices')
         webauthn._get_devices.return_value = [mock_device].__iter__()
 
-        # Mock out U2F client
+        # Mock out webauthn client
         mock_client = mock.MagicMock(name='mock_client')
         webauthn._get_client = mock.MagicMock(name='_get_client')
         webauthn._get_client.return_value = mock_client

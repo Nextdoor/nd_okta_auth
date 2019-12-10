@@ -1,10 +1,12 @@
 from __future__ import unicode_literals
 
+import base64
 import sys
 import unittest
-import base64
 
 import fido2
+from fido2.utils import websafe_encode
+from fido2.webauthn import PublicKeyCredentialRequestOptions
 
 from nd_okta_auth.factor import webauthn as factor
 
@@ -35,6 +37,9 @@ CREDENTIAL_ID_STR = b'ababababababa'
 CREDENTIAL_ID_ENC = 'YWJhYmFiYWJhYmFiYQ=='
 CREDENTIAL_ID_DEC = base64.urlsafe_b64decode(CREDENTIAL_ID_ENC)
 
+NONCE_STR = b'anonce'
+NONCE_ENC = websafe_encode(NONCE_STR)
+
 CHALLENGE_RESPONSE = {
     'status': 'MFA_CHALLENGE',
     '_embedded': {
@@ -45,7 +50,7 @@ CHALLENGE_RESPONSE = {
             },
             "_embedded": {
                 "challenge": {
-                    'challenge': 'anonce',
+                    'challenge': NONCE_ENC,
                     'extensions': {}
                 }
             },
@@ -126,14 +131,16 @@ class OktaTest(unittest.TestCase):
 
         allow_list = [{
             'type': 'public-key',
-            'id': CREDENTIAL_ID_DEC
+            'id': CREDENTIAL_ID_STR
         }]
 
-        mock_client.get_assertion.assert_called_once_with(
-            'foobar.okta.com',
-            'anonce',
-            allow_list
+        options = PublicKeyCredentialRequestOptions(
+            challenge=NONCE_STR,
+            rp_id='foobar.okta.com',
+            allow_credentials=allow_list
         )
+
+        mock_client.get_assertion.assert_called_once_with(options)
 
         calls = [
             mock.call('/authn/factors/123/verify',

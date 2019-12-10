@@ -9,6 +9,9 @@ except ImportError:
 
 from fido2.client import Fido2Client, ClientError
 from fido2.hid import CtapHidDevice
+from fido2.webauthn import PublicKeyCredentialRequestOptions
+
+from fido2.utils import websafe_decode
 
 from nd_okta_auth.factor import Factor, FactorVerificationFailed
 
@@ -83,9 +86,14 @@ class WebauthnFactor(Factor):
 
         log.warning('Touch your authenticator device now...')
         try:
-            assertions, client_data = client.get_assertion(rp_id,
-                                                           nonce,
-                                                           allow_list)
+            challenge = websafe_decode(nonce)
+            options = PublicKeyCredentialRequestOptions(
+                challenge=challenge,
+                rp_id=rp_id,
+                allow_credentials=allow_list
+            )
+
+            assertions, client_data = client.get_assertion(options)
         except ClientError:
             raise FactorVerificationFailed('webauthn devices failed to '
                                            'sign request. Have you '

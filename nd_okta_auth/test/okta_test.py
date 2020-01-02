@@ -68,6 +68,23 @@ MFA_REQUIRED_RESPONSE_TWOFACTORS = {
 }
 
 
+MFA_REQUIRED_RESPONSE_TWOFACTORS_SAME = {
+    'status': 'MFA_REQUIRED',
+    '_embedded': {
+        'factors': [
+            {
+                'factorType': 'factor_one',
+                'id': '1',
+            },
+            {
+                'factorType': 'factor_one',
+                'id': '2',
+            }
+        ]
+    },
+    'stateToken': 'token',
+}
+
 class OktaTest(unittest.TestCase):
 
     def test_init_blank_inputs(self):
@@ -189,6 +206,23 @@ class OktaTest(unittest.TestCase):
         client.auth()
 
         factor_two.verify.assert_called_with('2', 'token', sleep=1)
+        self.assertEquals(client.session_token, 'XXXTOKENXXX')
+
+    def test_auth_verify_interrupt(self):
+        client = okta.Okta('organization', 'username', 'password')
+        client._request = mock.MagicMock(name='request')
+        client._request.side_effect = [MFA_REQUIRED_RESPONSE_TWOFACTORS_SAME]
+
+        test_factor = mock.MagicMock(name='factor_one')
+        test_factor.name.return_value = 'factor_one'
+        test_factor.verify.side_effect = [KeyboardInterrupt, SUCCESS_RESPONSE]
+
+        client.supported_factors = [test_factor]
+        client.auth()
+
+        test_factor.verify.assert_has_calls([mock.call('1', 'token', sleep=1),
+                                             mock.call('2', 'token', sleep=1)])
+
         self.assertEquals(client.session_token, 'XXXTOKENXXX')
 
     def test_request_good_response(self):

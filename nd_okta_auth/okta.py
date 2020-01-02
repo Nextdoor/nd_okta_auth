@@ -121,41 +121,41 @@ class Okta(base_client.BaseOktaClient):
 
         if status == 'MFA_REQUIRED' or status == 'MFA_CHALLENGE':
             # Factors enabled by the user
-            enabled_factors = {}
-            for enabled_factor in ret['_embedded']['factors']:
-                enabled_factors[enabled_factor['factorType']] = enabled_factor
+            enabled_factors = ret['_embedded']['factors']
 
             # Loop through locally supported factors
             for supported_factor in self.supported_factors:
-                enabled_factor = enabled_factors.get(supported_factor.name(),
-                                                     None)
+                # filter enabled factors against support factors
+                filtered_factors = list(
+                    filter(lambda x: x.get('factorType') == supported_factor.name(),
+                           enabled_factors))
 
-                if enabled_factor is None:
-                    continue
+                # Try authenticating with each enabled factor
+                for enabled_factor in filtered_factors:
+                    log.info('Authenticating with factor: {} id {}'.format(
+                        supported_factor.name(), enabled_factor['id']))
 
-                log.info('Authenticating with factor: {}'.format(
-                    supported_factor.name()))
-
-                try:
-                    ret = supported_factor.verify(enabled_factor['id'],
-                                                  ret['stateToken'], sleep=1)
-                    self.set_token(ret)
-                    return
-                except KeyboardInterrupt:
-                    # Allow users to use MFA Push by breaking
-                    # out of waiting for U2F device.
-                    log.info('User skipping factor: {}'.format(
-                        supported_factor.name()))
-                    continue
-                except factor.FactorVerificationFailed as e:
-                    # Non fatal error that a factor failed to
-                    # be verified.
-                    log.error(e)
-                    continue
-                except requests.exceptions.ReadTimeout:
-                    log.error('HTTP timeout contacting Okta at {}'.format(
-                        self.base_url))
-                    continue
+                    try:
+                        ret = supported_factor.verify(enabled_factor['id'],
+                                                      ret['stateToken'],
+                                                      sleep=1)
+                        self.set_token(ret)
+                        return
+                    except KeyboardInterrupt:
+                        # Allow users to use MFA Push by breaking
+                        # out of waiting for U2F device.
+                        log.info('User skipping factor: {}'.format(
+                            supported_factor.name()))
+                        continue
+                    except factor.FactorVerificationFailed as e:
+                        # Non fatal error that a factor failed to
+                        # be verified.
+                        log.error(e)
+                        continue
+                    except requests.exceptions.ReadTimeout:
+                        log.error('HTTP timeout contacting Okta at {}'.format(
+                            self.base_url))
+                        continue
 
         raise ExhaustedFactors('Failed to verify with any MFA factor')
 

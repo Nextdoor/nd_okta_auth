@@ -85,6 +85,7 @@ MFA_REQUIRED_RESPONSE_TWOFACTORS_SAME = {
     'stateToken': 'token',
 }
 
+
 class OktaTest(unittest.TestCase):
 
     def test_init_blank_inputs(self):

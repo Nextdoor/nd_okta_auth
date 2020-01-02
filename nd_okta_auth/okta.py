@@ -127,7 +127,8 @@ class Okta(base_client.BaseOktaClient):
             for supported_factor in self.supported_factors:
                 # filter enabled factors against support factors
                 filtered_factors = list(
-                    filter(lambda x: x.get('factorType') == supported_factor.name(),
+                    filter(lambda x:
+                           x.get('factorType') == supported_factor.name(),
                            enabled_factors))
 
                 # Try authenticating with each enabled factor

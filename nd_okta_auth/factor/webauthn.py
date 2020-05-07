@@ -1,8 +1,17 @@
+import base64
 import logging
 import time
 
-from fido2.client import U2fClient, ClientError
+try:
+    from urllib.parse import urlparse
+except ImportError:
+    from urlparse import urlparse
+
+from fido2.client import Fido2Client, ClientError
 from fido2.hid import CtapHidDevice
+from fido2.webauthn import PublicKeyCredentialRequestOptions
+
+from fido2.utils import websafe_decode
 
 from nd_okta_auth.factor import Factor, FactorVerificationFailed
 
@@ -18,7 +27,7 @@ class WebauthnFactor(Factor):
         return CtapHidDevice.list_devices()
 
     def _get_client(self, dev, appId):
-        return U2fClient(dev, appId)
+        return Fido2Client(dev, appId)
 
     def verify(self, fid, state_token, sleep):
         '''Validates user with Okta using user's webauthn hardware device.
@@ -60,19 +69,31 @@ class WebauthnFactor(Factor):
         # Get webauthn device to sign nonce/challenge
         appId = self.base_url
         client = self._get_client(dev, appId)
-
         nonce = (ret['_embedded']
                     ['factor']
                     ['_embedded']
                     ['challenge']
                     ['challenge'])
-        credentialId = ret['_embedded']['factor']['profile']['credentialId']
-        registered_keys = [{'version': 'U2F_V2', 'keyHandle': credentialId}]
+        credential_id = ret['_embedded']['factor']['profile']['credentialId']
+        # Add extra padding to credential_id as it may not have enough
+        credential_id = base64.urlsafe_b64decode(credential_id + "====")
+
+        allow_list = [{
+            'type': 'public-key',
+            'id': credential_id
+        }]
+        rp_id = urlparse(appId).hostname
 
         log.warning('Touch your authenticator device now...')
-
         try:
-            r = client.sign(appId, nonce, registered_keys)
+            challenge = websafe_decode(nonce)
+            options = PublicKeyCredentialRequestOptions(
+                challenge=challenge,
+                rp_id=rp_id,
+                allow_credentials=allow_list
+            )
+
+            assertions, client_data = client.get_assertion(options)
         except ClientError:
             raise FactorVerificationFailed('webauthn devices failed to '
                                            'sign request. Have you '
@@ -80,9 +101,15 @@ class WebauthnFactor(Factor):
                                            .format(appId))
 
         # Send challenge response back to Okta
+        assert(len(assertions) == 1)
+        ad = base64.b64encode(assertions[0].auth_data)
+        cd = base64.b64encode(client_data)
+        sig = base64.b64encode(assertions[0].signature)
+
         data = {'stateToken': state_token,
-                'clientData': r.get("clientData"),
-                'signatureData': r.get("signatureData")}
+                'clientData': cd.decode(),
+                'authenticatorData': ad.decode(),
+                'signatureData': sig.decode()}
 
         ret = self._request(path, data)
 

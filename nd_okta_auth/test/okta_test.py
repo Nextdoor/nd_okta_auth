@@ -190,7 +190,7 @@ class OktaTest(unittest.TestCase):
 
         self.assertEquals(client.session_token, None)
 
-    def test_auth_verify_interrupt(self):
+    def test_auth_verify_two_interrupt(self):
         client = okta.Okta('organization', 'username', 'password')
         client._request = mock.MagicMock(name='request')
         client._request.side_effect = [MFA_REQUIRED_RESPONSE_TWOFACTORS]

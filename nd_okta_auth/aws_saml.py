@@ -39,7 +39,7 @@ class SamlAssertion:
                       key=lambda role: 'saml-provider' in role)
 
     def roles(self):
-        attributes = ET.fromstring(self.assertion).getiterator(
+        attributes = ET.fromstring(self.assertion).iter(
             '{urn:oasis:names:tc:SAML:2.0:assertion}Attribute')
 
         name = 'https://aws.amazon.com/SAML/Attributes/Role'
@@ -47,7 +47,7 @@ class SamlAssertion:
                             in attributes
                             if x.get('Name') == name]
 
-        roles_values = [(x.getiterator(
+        roles_values = [(x.iter(
             '{urn:oasis:names:tc:SAML:2.0:assertion}AttributeValue'))
                         for x
                         in roles_attributes]

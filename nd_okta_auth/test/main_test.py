@@ -13,13 +13,6 @@ else:
 
 class MainTest(unittest.TestCase):
 
-    def test_setup_logger(self):
-        # Simple execution test - make sure that the logger code executes and
-        # returns a root logger. No mocks used here, want to ensure that the
-        # options passed to the logger are valid.
-        ret = main.setup_logging()
-        self.assertEquals(type(ret), type(logging.getLogger()))
-
     def test_get_config_parser(self):
         # Simple execution test again - get the argument parser and make sure
         # it looks reasonably correct. Just validating that this function has

@@ -1,4 +1,4 @@
-'''
+"""
 aws
 ^^^
 
@@ -9,7 +9,7 @@ Credits: This code base was almost entirely stolen from
 https://github.com/ThoughtWorksInc/aws_role_credentials. It continues to be
 modified from the original code, but thanks a ton to the original writers at
 Thought Works Inc.
-'''
+"""
 
 from __future__ import unicode_literals
 from builtins import str
@@ -27,24 +27,24 @@ log = logging.getLogger(__name__)
 
 
 class BaseException(Exception):
-    '''Base AWS SAML Exception'''
+    """Base AWS SAML Exception"""
 
 
 class InvalidSaml(BaseException):
-    '''Raised when the SAML Assertion is invalid for some reason'''
+    """Raised when the SAML Assertion is invalid for some reason"""
 
 
 class MultipleRoles(BaseException):
-    '''Raised when AWS offers multiple roles'''
+    """Raised when AWS offers multiple roles"""
 
 
 class Credentials(object):
 
-    '''Simple AWS Credentials Profile representation.
+    """Simple AWS Credentials Profile representation.
 
     This object reads in an Amazon ~/.aws/credentials file, and then allows you
     to write out credentials into different Profile sections.
-    '''
+    """
 
     def __init__(self, filename):
         self.filename = filename
@@ -52,7 +52,7 @@ class Credentials(object):
     def _add_profile(self, name, profile):
         config = configparser.ConfigParser(interpolation=None)
         try:
-            config.read_file(open(self.filename, 'r'))
+            config.read_file(open(self.filename, "r"))
         except IOError:
             pass
 
@@ -60,12 +60,12 @@ class Credentials(object):
             config.add_section(name)
 
         [(config.set(name, k, v)) for k, v in profile.items()]
-        with open(self.filename, 'w+') as configfile:
+        with open(self.filename, "w+") as configfile:
             os.chmod(self.filename, 0o600)
             config.write(configfile)
 
     def add_profile(self, name, region, access_key, secret_key, session_token):
-        '''Writes out a set of AWS Credentials to disk.
+        """Writes out a set of AWS Credentials to disk.
 
         args:
             name: The profile name to write to
@@ -73,25 +73,28 @@ class Credentials(object):
             access_key: The AWS_ACCESS_KEY_ID
             secret_key: The AWS_SECRET_ACCESS_KEY
             session_token: The AWS_SESSION_TOKEN
-        '''
+        """
         name = str(name)
         self._add_profile(
             name,
-            {'output': 'json',
-             'region': str(region),
-             'aws_access_key_id': str(access_key),
-             'aws_secret_access_key': str(secret_key),
-             'aws_security_token': str(session_token),
-             'aws_session_token': str(session_token)
-             })
+            {
+                "output": "json",
+                "region": str(region),
+                "aws_access_key_id": str(access_key),
+                "aws_secret_access_key": str(secret_key),
+                "aws_security_token": str(session_token),
+                "aws_session_token": str(session_token),
+            },
+        )
 
-        log.info('Wrote profile "{name}" to {file}'.format(
-            name=name, file=self.filename))
+        log.info(
+            'Wrote profile "{name}" to {file}'.format(name=name, file=self.filename)
+        )
 
 
 class Session(object):
 
-    '''Amazon Federated Session Generator.
+    """Amazon Federated Session Generator.
 
     This class is used to contact Amazon with a specific SAML Assertion and
     get back a set of temporary Federated credentials. These credentials are
@@ -99,25 +102,22 @@ class Session(object):
 
     This object is meant to be used once -- as SAML Assertions are one-time-use
     objects.
-    '''
+    """
 
-    def __init__(self,
-                 assertion,
-                 credential_path='~/.aws',
-                 profile='default',
-                 region='us-east-1'):
+    def __init__(
+        self, assertion, credential_path="~/.aws", profile="default", region="us-east-1"
+    ):
         cred_dir = expanduser(credential_path)
-        cred_file = os.path.join(cred_dir, 'credentials')
+        cred_file = os.path.join(cred_dir, "credentials")
 
-        boto_logger = logging.getLogger('botocore')
+        boto_logger = logging.getLogger("botocore")
         boto_logger.setLevel(logging.WARNING)
 
         if not os.path.exists(cred_dir):
-            log.info('Creating missing AWS Credentials dir {dir}'.format(
-                dir=cred_dir))
+            log.info("Creating missing AWS Credentials dir {dir}".format(dir=cred_dir))
             os.makedirs(cred_dir)
 
-        self.sts = boto3.client('sts')
+        self.sts = boto3.client("sts")
 
         self.profile = profile
         self.region = region
@@ -135,7 +135,7 @@ class Session(object):
 
     @property
     def is_valid(self):
-        '''Returns True if the Session is still valid.
+        """Returns True if the Session is still valid.
 
         Takes the current time (in UTC) and compares it to the Expiration time
         returned by Amazon. Adds a 10 minute buffer to make sure that we start
@@ -149,65 +149,67 @@ class Session(object):
 
         Returns:
             Bool
-        '''
+        """
         # Consider the tokens expired when they have 10m left
         try:
             buffer = datetime.timedelta(seconds=600)
             now = datetime.datetime.utcnow()
-            expir = datetime.datetime.strptime(str(self.expiration),
-                                               '%Y-%m-%d %H:%M:%S+00:00')
+            expir = datetime.datetime.strptime(
+                str(self.expiration), "%Y-%m-%d %H:%M:%S+00:00"
+            )
 
             return (now + buffer) < expir
         except ValueError:
             return False
 
     def set_role(self, role_index):
-        '''Sets the role based on the supplied index value'''
+        """Sets the role based on the supplied index value"""
         self.role = self.assertion.roles()[int(role_index)]
 
     def available_roles(self):
-        '''Returns the roles availble from AWS'''
+        """Returns the roles availble from AWS"""
         return self.assertion.roles()
 
     def assume_role(self):
-        '''Use the SAML Assertion to actually get the credentials.
+        """Use the SAML Assertion to actually get the credentials.
 
         Uses the supplied (one time use!) SAML Assertion to go out to Amazon
         and get back a set of temporary credentials. These are written out to
         disk and can be used for an hour before they need to be replaced.
-        '''
+        """
         if self.role is None:
             try:
                 if len(self.assertion.roles()) > 1:
                     raise MultipleRoles
                 self.role = self.assertion.roles()[0]
             except xml.etree.ElementTree.ParseError:
-                log.error('Could not find any Role in the SAML assertion')
+                log.error("Could not find any Role in the SAML assertion")
                 log.error(self.assertion.__dict__)
                 raise InvalidSaml()
 
-        log.info('Assuming role: {}'.format(self.role['role']))
+        log.info("Assuming role: {}".format(self.role["role"]))
 
         session = self.sts.assume_role_with_saml(
-            RoleArn=self.role['role'],
-            PrincipalArn=self.role['principle'],
-            SAMLAssertion=self.assertion.encode())
-        creds = session['Credentials']
+            RoleArn=self.role["role"],
+            PrincipalArn=self.role["principle"],
+            SAMLAssertion=self.assertion.encode(),
+        )
+        creds = session["Credentials"]
 
-        self.aws_access_key_id = creds['AccessKeyId']
-        self.aws_secret_access_key = creds['SecretAccessKey']
-        self.session_token = creds['SessionToken']
-        self.expiration = creds['Expiration']
+        self.aws_access_key_id = creds["AccessKeyId"]
+        self.aws_secret_access_key = creds["SecretAccessKey"]
+        self.session_token = creds["SessionToken"]
+        self.expiration = creds["Expiration"]
 
         self._write()
 
     def _write(self):
-        '''Writes out our secrets to the Credentials object'''
+        """Writes out our secrets to the Credentials object"""
         self.writer.add_profile(
             name=self.profile,
             region=self.region,
             access_key=self.aws_access_key_id,
             secret_key=self.aws_secret_access_key,
-            session_token=self.session_token)
-        log.info('Session expires at {time}'.format(
-            time=self.expiration))
+            session_token=self.session_token,
+        )
+        log.info("Session expires at {time}".format(time=self.expiration))

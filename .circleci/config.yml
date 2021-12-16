@@ -39,10 +39,10 @@ jobs:
             . venv/bin/activate
             python setup.py pep8
       - run:
-          name: flake8
+          name: black
           command: |
             . venv/bin/activate
-            python setup.py flake8
+            black nd_okta_auth
 
   test-3.8:
     <<: *test-template

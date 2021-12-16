@@ -25,30 +25,6 @@ PACKAGE = 'nd_okta_auth'
 DIR = os.path.dirname(os.path.realpath(__file__))
 
 
-class PyflakesCommand(Command):
-    description = 'Pyflakes Checks'
-    user_options = []
-
-    def initialize_options(self):
-        pass
-
-    def finalize_options(self):
-        pass
-
-    def run(self):
-        # Don't import the pyflakes code until now because setup.py needs to be
-        # able to install Pyflakes if its missing. This localizes the import to
-        # only after the setuptools code has run and verified everything is
-        # installed.
-        from pyflakes import api
-        from pyflakes import reporter
-
-        # Run the Pyflakes check against our package and check its output
-        val = api.checkRecursive([PACKAGE], reporter._makeDefaultReporter())
-        if val > 0:
-            sys.exit('ERROR: Pyflakes failed with exit code %d' % val)
-
-
 setup(
     name=PACKAGE,
     version=__version__,
@@ -78,9 +54,5 @@ setup(
         'Programming Language :: Python',
         'Operating System :: POSIX',
         'Natural Language :: English',
-    ],
-    cmdclass={
-        'pep8': Pep8Command,
-        'pyflakes': PyflakesCommand,
-    },
+    ]
 )

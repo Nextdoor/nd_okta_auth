@@ -34,11 +34,6 @@ jobs:
             . venv/bin/activate
             nosetests -vv --with-coverage --cover-erase --cover-package=nd_okta_auth
       - run:
-          name: pep8
-          command: |
-            . venv/bin/activate
-            python setup.py pep8
-      - run:
           name: black
           command: |
             . venv/bin/activate

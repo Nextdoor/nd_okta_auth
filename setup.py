@@ -25,27 +25,6 @@ PACKAGE = 'nd_okta_auth'
 DIR = os.path.dirname(os.path.realpath(__file__))
 
 
-class Pep8Command(Command):
-    description = 'Pep8 Lint Checks'
-    user_options = []
-
-    def initialize_options(self):
-        pass
-
-    def finalize_options(self):
-        pass
-
-    def run(self):
-        # Don't import the pep8 module until now because setup.py needs to be
-        # able to install Pep8 if its missing.
-        import pep8
-        pep8style = pep8.StyleGuide(parse_argv=True, config_file='pep8.cfg')
-        report = pep8style.check_files([PACKAGE])
-        if report.total_errors:
-            sys.exit('ERROR: Pep8 failed with exit %d errors' %
-                     report.total_errors)
-
-
 class PyflakesCommand(Command):
     description = 'Pyflakes Checks'
     user_options = []

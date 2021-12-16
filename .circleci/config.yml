@@ -6,7 +6,14 @@ workflows:
       - test-3.9
       - test-3.8
       - test-3.7
-      - test-3.6
+      - upload:
+          requires: [test-3.7, test-3.8, test-3.9]
+          filters:
+            tags:
+              only: /[0-9]+(\.[0-9]+)*/
+            branches:
+              ignore: /.*/
+
 jobs:
   test-3.9: &test-template
     docker:
@@ -47,7 +54,17 @@ jobs:
     docker:
       - image: circleci/python:3.7
 
-  test-3.6:
-    <<: *test-template
+  upload:
     docker:
-      - image: circleci/python:3.6
+      - image: circleci/python:3.9
+    steps:
+      - checkout
+      - run:
+          name: build package
+          command: |
+            pip install twine
+            python setup.py sdist
+      - run:
+          name: upload package
+          command: |
+            twine upload dist/*

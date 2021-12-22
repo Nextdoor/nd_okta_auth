@@ -13,5 +13,5 @@
 # Copyright 2017 Nextdoor.com, Inc
 
 
-__version__ = "1.0.3"
+__version__ = "1.0.4"
 __desc__ = "Nextdoor Okta Auther"

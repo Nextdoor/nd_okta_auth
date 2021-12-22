@@ -15,7 +15,7 @@
 # Copyright 2017 Nextdoor.com, Inc
 import argparse
 from future.moves import sys
-from nd_okta_auth import auth
+from nd_okta_auth import auth, base_client
 from nd_okta_auth.metadata import __version__
 
 
@@ -113,7 +113,7 @@ def get_config_parser(argv):
 def entry_point():
     """Zero-argument entry point for use with setuptools/distribute."""
     config = get_config_parser(sys.argv)
-    raise SystemExit(
+    raise base_client.BaseException(
         auth.login(
             aws_profile=config.name,
             okta_appid=config.appid,
@@ -126,4 +126,7 @@ def entry_point():
 
 
 if __name__ == "__main__":
-    entry_point()
+    try:
+        entry_point()
+    except base_client.BaseException:
+        sys.exit(1)

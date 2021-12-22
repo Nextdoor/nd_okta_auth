@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 import sys
 import unittest
 
-from nd_okta_auth import main
+from nd_okta_auth import main, base_client
 
 if sys.version_info[0] < 3:  # Python 2
     import mock
@@ -37,7 +37,7 @@ class MainTest(unittest.TestCase):
         fake_parser.reup = False
         config_mock.return_value = fake_parser
         # When
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(base_client.BaseException):
             main.entry_point()
         # Then
         auth_login.assert_called_with(

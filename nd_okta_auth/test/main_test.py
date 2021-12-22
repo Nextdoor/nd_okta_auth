@@ -27,24 +27,10 @@ class MainTest(unittest.TestCase):
     @mock.patch("nd_okta_auth.auth.login")
     @mock.patch("nd_okta_auth.main.get_config_parser")
     def test_entry_point(self, config_mock, auth_login):
-        # Give
+        # Given
         fake_parser = mock.MagicMock(name="fake_parser")
-        fake_parser.name = "eng"
-        fake_parser.org = "org"
-        fake_parser.appid = "appid"
-        fake_parser.username = "username"
-        fake_parser.debug = True
-        fake_parser.reup = False
         config_mock.return_value = fake_parser
-        # When
-        with self.assertRaises(base_client.BaseException):
+        auth_login.side_effect = base_client.BaseException()
+        # Except
+        with self.assertRaises(SystemExit):
             main.entry_point()
-        # Then
-        auth_login.assert_called_with(
-            aws_profile="eng",
-            okta_appid="appid",
-            okta_org="org",
-            username="username",
-            reup=False,
-            debug=True,
-        )

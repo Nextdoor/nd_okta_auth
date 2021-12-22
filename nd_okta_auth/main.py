@@ -113,7 +113,7 @@ def get_config_parser(argv):
 def entry_point():
     """Zero-argument entry point for use with setuptools/distribute."""
     config = get_config_parser(sys.argv)
-    raise base_client.BaseException(
+    try:
         auth.login(
             aws_profile=config.name,
             okta_appid=config.appid,
@@ -122,11 +122,9 @@ def entry_point():
             reup=config.reup,
             debug=config.debug,
         )
-    )
+    except base_client.BaseException:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-    try:
-        entry_point()
-    except base_client.BaseException:
-        sys.exit(1)
+    entry_point()

@@ -11,3 +11,4 @@ nd_okta_auth.egg-info
 build/
 htmlcov/
 venv
+.DS_Store

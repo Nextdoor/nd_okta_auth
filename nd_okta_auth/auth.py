@@ -32,6 +32,7 @@ def setup_logging():
 
 def login(
     aws_profile: str,
+    aws_profile_aliases: str,
     okta_appid: str,
     okta_org: str,
     username: str,
@@ -88,7 +89,10 @@ def login(
             assertion = okta_client.get_assertion(
                 appid=okta_appid, apptype="amazon_aws"
             )
-            session = aws.Session(assertion, profile=aws_profile)
+            session = aws.Session(
+                assertion, profile=aws_profile,
+                profile_aliases=aws_profile_aliases
+            )
 
             # If role_selection is set we're in a reup loop. Re-set the role on
             # the session to prevent the user being prompted for the role again

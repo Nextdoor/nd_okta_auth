@@ -105,7 +105,8 @@ class Session(object):
     """
 
     def __init__(
-        self, assertion, credential_path="~/.aws", profile="default", region="us-east-1"
+        self, assertion, credential_path="~/.aws", profile="default",
+        profile_aliases="", region="us-east-1"
     ):
         cred_dir = expanduser(credential_path)
         cred_file = os.path.join(cred_dir, "credentials")
@@ -120,6 +121,7 @@ class Session(object):
         self.sts = boto3.client("sts")
 
         self.profile = profile
+        self.profile_aliases = profile_aliases
         self.region = region
 
         self.assertion = SamlAssertion(assertion)
@@ -204,7 +206,11 @@ class Session(object):
         self._write()
 
     def _write(self):
-        """Writes out our secrets to the Credentials object"""
+        """Writes out our secrets to the Credentials object
+
+        If the user requested one or more profile aliases, writes the exact same
+        secrets out to each additional profile as well.
+        """
         self.writer.add_profile(
             name=self.profile,
             region=self.region,
@@ -212,4 +218,14 @@ class Session(object):
             secret_key=self.aws_secret_access_key,
             session_token=self.session_token,
         )
+
+        for alias in [a for a in self.profile_aliases.split(",") if a]:
+            self.writer.add_profile(
+                name=alias,
+                region=self.region,
+                access_key=self.aws_access_key_id,
+                secret_key=self.aws_secret_access_key,
+                session_token=self.session_token,
+            )
+
         log.info("Session expires at {time}".format(time=self.expiration))

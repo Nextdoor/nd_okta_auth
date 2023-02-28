@@ -105,6 +105,10 @@ def get_config_parser(argv):
     optional_args.add_argument(
         "-n", "--name", type=str, help="AWS Profile Name", default="default"
     )
+    optional_args.add_argument(
+        "-A", "--alias", type=str, default="",
+        help="Comma-separated list of additional profile names to write"
+    )
 
     config = arg_parser.parse_args(args=argv[1:])
     return config
@@ -116,6 +120,7 @@ def entry_point():
     try:
         auth.login(
             aws_profile=config.name,
+            aws_profile_aliases=config.alias,
             okta_appid=config.appid,
             okta_org=config.org,
             username=config.username,

@@ -99,6 +99,7 @@ class AuthTest(unittest.TestCase):
 def _run_auth_login():
     login(
         aws_profile="eng",
+        aws_profile_aliases="",
         okta_appid="appid",
         okta_org="org",
         username="username",

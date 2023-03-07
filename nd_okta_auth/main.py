@@ -15,7 +15,7 @@
 # Copyright 2017 Nextdoor.com, Inc
 import argparse
 from future.moves import sys
-from nd_okta_auth import auth, base_client
+from nd_okta_auth import auth_oie_odic, auth, base_client
 from nd_okta_auth.metadata import __version__
 
 
@@ -96,6 +96,18 @@ def get_config_parser(argv):
         default=False,
     )
     optional_args.add_argument(
+        "-oi", "--oidc_id", type=str, help="oidc_id", default="None"
+    )
+    optional_args.add_argument(
+        "-oom",
+        "--oie_oidc_mode",
+        action="store_true",
+        help=(
+            "oie_oidc_mode"
+        ),
+        default=False,
+    )
+    optional_args.add_argument(
         "-r",
         "--reup",
         action="store_true",
@@ -105,6 +117,9 @@ def get_config_parser(argv):
     optional_args.add_argument(
         "-n", "--name", type=str, help="AWS Profile Name", default="default"
     )
+    optional_args.add_argument(
+        "-d", "--domain", type=str, help="AWS Profile Name", default="okta.com"
+    )
 
     config = arg_parser.parse_args(args=argv[1:])
     return config
@@ -113,17 +128,36 @@ def get_config_parser(argv):
 def entry_point():
     """Zero-argument entry point for use with setuptools/distribute."""
     config = get_config_parser(sys.argv)
-    try:
-        auth.login(
-            aws_profile=config.name,
-            okta_appid=config.appid,
-            okta_org=config.org,
-            username=config.username,
-            reup=config.reup,
-            debug=config.debug,
-        )
-    except base_client.BaseException:
-        sys.exit(1)
+    if config.oie_oidc_mode:
+        try:
+            auth_oie_odic.login(
+                aws_profile=config.name,
+                okta_appid=config.appid,
+                okta_org=config.org,
+                reup=config.reup,
+                oidc_id=config.oidc_id,
+                  domain=config.domain,
+                debug=config.debug,
+
+            )
+        except base_client.BaseException:
+            sys.exit(1)    
+    else:
+        try:
+            auth.login(
+                aws_profile=config.name,
+                okta_appid=config.appid,
+                okta_org=config.org,
+               
+                username=config.username,
+                reup=config.reup,
+               
+                debug=config.debug,
+    
+            )
+        except base_client.BaseException:
+            sys.exit(1)
+
 
 
 if __name__ == "__main__":
